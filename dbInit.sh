@@ -64,6 +64,40 @@ case $choice in
         if [ $? -eq 0 ]; then
             echo "✓ SQLite database '$DB_NAME.db' created successfully!"
             echo "  Location: $(pwd)/$DB_NAME.db"
+            # Offer to encrypt the SQLite database file
+            read -p "Would you like to encrypt the database file now? (y/N): " enc_choice
+            enc_choice=${enc_choice:-N}
+            if [[ "$enc_choice" =~ ^[Yy]$ ]]; then
+                if ! command -v openssl >/dev/null 2>&1; then
+                    echo "openssl not found. Attempting to install openssl..."
+                    case $OS in
+                        ubuntu|debian)
+                            sudo apt-get update -qq && sudo apt-get install -y openssl > /dev/null 2>&1
+                            ;;
+                        centos|rhel|fedora)
+                            sudo yum install -y openssl > /dev/null 2>&1
+                            ;;
+                        alpine)
+                            sudo apk add --no-cache openssl > /dev/null 2>&1
+                            ;;
+                        macos)
+                            brew install openssl > /dev/null 2>&1
+                            ;;
+                        *)
+                            echo "Please install openssl manually and re-run this script."
+                            ;;
+                    esac
+                fi
+
+                # Prompt for passphrase and call helper
+                echo "Encrypting database. You will be prompted for a passphrase."
+                sqlite_encrypt_db "${DB_NAME}.db"
+                if [ $? -eq 0 ]; then
+                    echo "✓ Database encrypted successfully."
+                else
+                    echo "✗ Database encryption failed or was cancelled."
+                fi
+            fi
         else
             echo "✗ Failed to create SQLite database. Make sure sqlite3 is installed."
             exit 1

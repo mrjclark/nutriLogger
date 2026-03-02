@@ -135,6 +135,19 @@ mock_createdb() {
     return 0
 }
 
+# Source dbUtils for testing functions
+if [ -f ./dbUtils.sh ]; then
+    # shellcheck source=/dev/null
+    source ./dbUtils.sh
+else
+    echo -e "${YELLOW}⚠${NC} dbUtils.sh not found; db utils tests will be skipped"
+fi
+
+# Helper: create temporary file
+make_tmpfile() {
+    mktemp --suffix=.db 2>/dev/null || mktemp
+}
+
 ################################################################################
 # Test Suite: OS Detection
 ################################################################################
@@ -350,6 +363,132 @@ test_postgresql_selection() {
     if [ "$choice" = "4" ]; then
         assert_true 1 "PostgreSQL selection (choice=4)"
     fi
+}
+
+################################################################################
+# Test Suite: dbUtils Functions
+################################################################################
+
+test_detect_os_function() {
+    echo ""
+    echo "Test Suite: dbUtils - detect_os"
+    echo "================================"
+
+    local os_val
+    os_val=$(detect_os 2>/dev/null || true)
+    if [ -n "$os_val" ]; then
+        assert_true 1 "detect_os returned: $os_val"
+    else
+        echo -e "${YELLOW}⊘ SKIP${NC}: detect_os returned empty"
+    fi
+}
+
+test_sqlite_create_database_function() {
+    echo ""
+    echo "Test Suite: dbUtils - sqlite_create_database"
+    echo "============================================"
+
+    # Mock sqlite3 to simulate successful SELECT 1;
+    sqlite3() {
+        if [ "$2" = "SELECT 1;" ]; then
+            return 0
+        fi
+        return 0
+    }
+
+    local tmpdb
+    tmpdb=$(make_tmpfile)
+    rm -f "$tmpdb"
+
+    sqlite_create_database "$tmpdb"
+    if [ $? -eq 0 ]; then
+        assert_true 1 "sqlite_create_database succeeded (mocked)"
+    else
+        assert_false 0 "sqlite_create_database succeeded (mocked)"
+    fi
+    unset -f sqlite3
+}
+
+test_sqlite_create_tables_function() {
+    echo ""
+    echo "Test Suite: dbUtils - sqlite_create_tables"
+    echo "=========================================="
+
+    if command -v sqlite3 >/dev/null 2>&1; then
+        local tmpdb
+        tmpdb=$(make_tmpfile)
+        sqlite3 "$tmpdb" "SELECT 1;" >/dev/null 2>&1 || true
+        sqlite_create_tables "$tmpdb"
+        if [ $? -eq 0 ]; then
+            assert_true 1 "sqlite_create_tables succeeded (real sqlite3)"
+        else
+            assert_false 0 "sqlite_create_tables succeeded (real sqlite3)"
+        fi
+        rm -f "$tmpdb"
+    else
+        echo -e "${YELLOW}⊘ SKIP${NC}: sqlite3 not available; skipping sqlite_create_tables test"
+    fi
+}
+
+test_sqlite_encrypt_db_function() {
+    echo ""
+    echo "Test Suite: dbUtils - sqlite_encrypt_db"
+    echo "========================================"
+
+    if command -v openssl >/dev/null 2>&1; then
+        local tmpdb decfile
+        tmpdb=$(make_tmpfile)
+        echo "testdata" > "$tmpdb"
+        sqlite_encrypt_db "$tmpdb" "unittestpass"
+        if [ $? -eq 0 ]; then
+            # try decrypting to ensure valid encrypted blob
+            decfile="${tmpdb}.dec"
+            openssl enc -d -aes-256-cbc -pbkdf2 -in "$tmpdb" -out "$decfile" -pass pass:"unittestpass" 2>/dev/null
+            if [ $? -eq 0 ] && [ -f "$decfile" ]; then
+                assert_true 1 "sqlite_encrypt_db encrypted and decryptable"
+                rm -f "$decfile"
+            else
+                assert_false 0 "sqlite_encrypt_db produced invalid ciphertext"
+            fi
+        else
+            assert_false 0 "sqlite_encrypt_db failed"
+        fi
+        rm -f "$tmpdb"
+    else
+        echo -e "${YELLOW}⊘ SKIP${NC}: openssl not available; skipping sqlite_encrypt_db test"
+    fi
+}
+
+test_mysql_create_database_function() {
+    echo ""
+    echo "Test Suite: dbUtils - mysql_create_database"
+    echo "============================================"
+
+    # Mock mysql binary
+    mysql() { return 0; }
+    mysql_create_database "testuser" "testpass" "testdb"
+    if [ $? -eq 0 ]; then
+        assert_true 1 "mysql_create_database invoked (mocked mysql)"
+    else
+        assert_false 0 "mysql_create_database failed"
+    fi
+    unset -f mysql
+}
+
+test_postgresql_create_database_function() {
+    echo ""
+    echo "Test Suite: dbUtils - postgresql_create_database"
+    echo "================================================="
+
+    # Mock createdb
+    createdb() { return 0; }
+    postgresql_create_database "postgres" "testdb"
+    if [ $? -eq 0 ]; then
+        assert_true 1 "postgresql_create_database invoked (mocked createdb)"
+    else
+        assert_false 0 "postgresql_create_database failed"
+    fi
+    unset -f createdb
 }
 
 ################################################################################
@@ -577,6 +716,14 @@ main() {
     test_mysql_password_handling
     test_mariadb_password_handling
     test_password_variable_usage
+
+    # dbUtils function tests
+    test_detect_os_function
+    test_sqlite_create_database_function
+    test_sqlite_create_tables_function
+    test_sqlite_encrypt_db_function
+    test_mysql_create_database_function
+    test_postgresql_create_database_function
     
     # Print summary
     echo ""

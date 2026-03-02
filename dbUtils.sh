@@ -306,6 +306,62 @@ EOF
 }
 
 ################################################################################
+# SQLite Encryption Helpers
+################################################################################
+
+sqlite_encrypt_db() {
+    local db_path="${1:-$DB_NAME.db}"
+    local passphrase="${2-}"
+    local tmp_enc="${db_path}.enc"
+
+    if [ ! -f "$db_path" ]; then
+        echo -e "${RED}✗${NC} Database file not found: $db_path"
+        return 1
+    fi
+
+    if ! command -v openssl >/dev/null 2>&1; then
+        echo -e "${YELLOW}⚠${NC} 'openssl' not found in PATH. Please install openssl to continue."
+        return 2
+    fi
+
+    if [ -z "$passphrase" ]; then
+        echo -n "Enter passphrase to encrypt the database: "
+        read -s passphrase
+        echo
+        echo -n "Confirm passphrase: "
+        read -s passphrase_confirm
+        echo
+        if [ "$passphrase" != "$passphrase_confirm" ]; then
+            echo -e "${RED}✗${NC} Passphrases do not match"
+            return 3
+        fi
+    fi
+
+    echo -e "${BLUE}[SQLite]${NC} Encrypting database: $db_path"
+
+    # Use OpenSSL AES-256-CBC with PBKDF2. The passphrase is provided on the command line
+    # for simplicity; avoid on shared systems if process-list exposure is a concern.
+    openssl enc -aes-256-cbc -pbkdf2 -salt -in "$db_path" -out "$tmp_enc" -pass pass:"$passphrase"
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}✗${NC} OpenSSL failed to encrypt the database"
+        [ -f "$tmp_enc" ] && rm -f "$tmp_enc"
+        return 4
+    fi
+
+    # Replace original with encrypted file and restrict permissions
+    mv "$tmp_enc" "$db_path"
+    chmod 600 "$db_path"
+
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓${NC} Database encrypted (file replaced): $db_path"
+        return 0
+    else
+        echo -e "${RED}✗${NC} Failed to finalize encrypted database"
+        return 5
+    fi
+}
+
+################################################################################
 # MySQL/MariaDB Database Functions
 ################################################################################
 
