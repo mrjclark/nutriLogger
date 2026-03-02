@@ -1,0 +1,105 @@
+Food - Input
+Type	Date	Time	Calories	Protein	Carbs	Fat	Fiber	Iron	Sodium	Potassium	Calcium	Description 
+
+Exercise - Input
+Date	Start Time	Exercise Type	Warm Up/Cool down	Calories_WU_CD_watch	Duration	Avg_HR_watch	Max_HR_watch	Calories_watch	Distance_watch_mi	Distance_watch_km	VO2Max_watch	Calories_Peloton	Distance_Peloton	Output_kj_Peloton	Power_w_Peloton
+
+Exercise - Calculated
+Calories_Weighted_Avg	Output_per_minute	Calories_Output_20	Calories_Output_25	Calories_pHRR_METS	Calories_pHRR_METS2	pHRR	pHRR_METS	pHRR_METS2	Calories_resting_mets	FTP_peloton	VO2max2_peloton	VO2Max_watch_calc	VO2max_cooper	METSmax_peloton	Weight_current_kg
+=[@[Calories_WU_CD_watch]]+[@[Calories_watch]]-[@[Calories_resting_mets]]	=IF(LEN([@[Output_kj_Peloton]])>0,[@[Output_kj_Peloton]]/([@Duration]*1440),"")	=IF(N([@[Output_kj_Peloton]]),[@[Output_kj_Peloton]]/(0.2*4.184),"")	=IF(N([@[Output_kj_Peloton]]),[@[Output_kj_Peloton]]/(0.25*4.184),"")	=[@[pHRR_METS]]*3.5*([@Duration]*1440)*[@[Weight_current_kg]]/200	=[@[pHRR_METS2]]*3.5*([@Duration]*1440)*[@[Weight_current_kg]]/200	"=LET(curDate,MAX(FILTER(tb_BP[BPDate],tb_BP[BPDate]<=[@Date])),curRHR,MIN(FILTER(tb_BP[hr],tb_BP[BPDate]<=curDate)),curMaxHR,MAX(FILTER([Max_HR_watch],[Date]<=[@Date])), ([@[Avg_HR_watch]]-curRHR)/(curMaxHR-curRHR))"	"=LET(pHRR,[@pHRR],IF(AND(pHRR>=0.3,pHRR<0.4),3+(4-3)*(pHRR-0.3)/(0.4-0.3),IF(AND(pHRR>=0.4,pHRR<0.6),4+(7-4)*(pHRR-0.4)/(0.6-0.4),IF(AND(pHRR>=0.6,pHRR<0.85),7+(10-7)*(pHRR-0.6)/(0.85-0.6),IF(pHRR>=0.85,10+(12-10)*(pHRR-0.85)/(1-0.85),2.8)))))"	=(POWER([@pHRR],1.68)*([@[METSmax_peloton]]-1))+1	"=LET(height_cm,175,age,(TODAY()-DATE(1987,1,26))/365.25,s,5,curRMR,10*[@[Weight_current_kg]]+6.25*height_cm-5*age+s,curRMR*[@Duration])"	#N/A	=LET(vo2maxw,[@[FTP_peloton]]/0.85,(vo2maxw*10.8/[@[Weight_current_kg]])+7)	#N/A	=IF(AND([@[Exercise Type]]="Outdoor Run",(HOUR([@Duration])*60+MINUTE([@Duration])+SECOND([@Duration]/60))>11,(HOUR([@Duration])*60+MINUTE([@Duration])+SECOND([@Duration])/60)<13),(IF([@[Distance_watch_mi]]>0,CONVERT([@[Distance_watch_mi]],"mi","km"),[@[Distance_watch_km]]) *1000- 504.9)/44.73,[@[VO2Max_watch_calc]])	=[@[VO2max2_peloton]]/3.5	=XLOOKUP(MAX(FILTER(tb_Weight[Date],tb_Weight[Date]<=[@Date])),tb_Weight[Date],tb_Weight[Weight_kg])	=LET(curDate,[@Date],curTime,[@[Start Time]],DATE(YEAR(curDate),MONTH(curDate),DAY(curDate))+TIME(HOUR(curTime),MINUTE(curTime),SECOND(curTime)))
+
+Workout
+Week	Day	exercise type	expected avg %maxHR	Exercise name	Sets	MIN Reps	Max Reps	Notes
+
+Weight - Input
+Date	Time	Weight_kg
+
+Weight - Calculated
+Weight_lb	Weight_kg_7davg	BMR_Mifflin_StJeor	BMR_LBM	BMR_Rev_HB	TDEE	Min_weight_to_date_kg
+=CONVERT(C105*1000,"g","lbm")	=AVERAGEIFS([Weight_kg],[Date],"<="&[@Date],[Date],">"&[@Date]-7)	"=LET(height_cm,175,age,(TODAY()-DATE(1987,1,26))/365.25,s,5,10*[@[Weight_kg]]+6.25*height_cm-5*age+s)"	=LET(h_cm,175,LBM,0.407*[@[Weight_kg]]+0.267*h_cm-19.2,370+(21.6*LBM))	=LET(h_cm,175,a_y,(TODAY()-DATE(1987,1,26))/365.25,88.362+(13.397*[@[Weight_kg]])+(4.799*h_cm)-(5.677*a_y))	=AVERAGE(tb_Weight[@[BMR_Mifflin_StJeor]:[BMR_Rev_HB]])*1.2	=MINIFS([Weight_kg], [Date], "<=" & [@Date])
+
+Body_Copy - Input
+Date	Weight_kg	Skeletal_Muscle_kg	Body Fat	Source
+
+Body_Copy - Calculated
+BMI	Lean Mass	FFMI	SMI	SM:FM
+=[@[Weight_kg]]/(POWER(1.75,2))	=[@[Weight_kg]]*(1-[@[Body Fat]])	=[@[Lean Mass]]/POWER(1.75, 2)	=[@[Skeletal_Muscle_kg]]/POWER(1.75, 2)	=[@[Skeletal_Muscle_kg]]/([@[Weight_kg]]*[@[Body Fat]])
+
+Blood_Pressure - Input
+DateTime	sys	dia	hr	after meds	Location	From	AFib	Notes
+
+Blood_Pressure - Calculated
+sys7day	dia7day	hr7day	
+=IFERROR(AVERAGEIFS([sys],[BPDateTime],"<="&[@BPDateTime],[BPDateTime],">"&[@BPDateTime]-7),"")
+
+Dashboard_BP
+Metric	Status	Today	3 Day Avg	7 Day Avg	Goal Lower	Goal Higher
+Systolic
+Diastolic
+HR
+K:Na
+
+Dashboard_Nutrition
+Metric	Status	Today	3 Day Avg	7 Day Avg	Goal Lower	Goal Higher
+Calories
+Protein
+Carbs
+Fat
+Fiber
+Iron
+Sodium
+Potassium
+Calcium
+
+Dashboard_CalorieTrends
+Item	Day	3 Day	7 Day	Current Week
+Goal Low
+Goal High
+Current
+Previous
+
+General_Info
+Start Date
+Starting Weight
+Starting Fat %
+Starting Fat Mass
+Calories per kg fat
+Total Calories In-Out
+Kg's from Cals Out
+Current Weight
+Current Fat %
+Current Fat Mass
+Actual Kg change
+Actual calories out
+Cals burnt at rest per min
+Ideal Fat Intake
+Ideal Carbs Intake
+Ideal Protein Intake
+Max HR over last year
+Resting HR over last year
+
+Motivation_Mantras
+Symbol	Ritual	Meaning
+🧠	Emotional Equilibrium	Exercise and diet isn’t punishment—it’s your natural regulator. Each rep is a vote for clarity.
+🏃‍♂️	Playful Vitality	You’re training to chase joy with your kids, not just calories. Movement is connection.
+🛠️	Visible Modeling	Every meal logged, every choice made with care, is a lesson your kids absorb. You’re showing them how to steward a body.
+🧭	Intentional Living	“Be one.” You already are. Ritual replaces restriction when you choose with purpose.
+🔄	Grounded Control	Logging meals isn’t just data—it’s proof you’re steering the ship. Even when the winds shift.
+🧂	Sodium Awareness	Every reduction is a heartbeat preserved. You’re not avoiding salt—you’re extending your presence.
+🪨	Temperance Training	You’re not depriving yourself—you’re preparing for hardship. You’re building a body that endures.
+🏠	Body as Home	You clean your home because it shelters you. You nourish your body because it carries you.
+🔒	Self-Trust	Control over food is a proxy for trust in yourself. You’re proving you can show up—for you, for them.
+💔	Coping with Compassion	Food has been a balm. Now, you’re learning to soothe with movement, ritual, and reflection. That’s growth.
+
+Motivation_Quotes
+Quotes	Author	Meaning
+“Waste no more time arguing about what a good man should be. Be one.” 	— Marcus Aurelius 	Ritual over rumination.
+“If it is not right, do not do it; if it is not true, do not say it.”	 — Marcus Aurelius	A reminder that every choice—food, word, action—is a reflection of your stewardship
+“No man is free who is not master of himself.” 	— Epictetus	Your fear of losing control is valid. But mastery is built through small, repeated rituals.
+“We suffer more often in imagination than in reality.” 	— Seneca	The fear of slipping back to 90 kg is real—but the suffering is amplified by the story around it. Reframe.
+“First say to yourself what you would be; and then do what you have to do.” 	— Epictetus	You’ve already named your ideal self. Now, each meal is a step toward him
+“When I let go of what I am, I become what I might be.” 	— Laozi	Release the identity of the struggler. Step into the steward.
+“Nature does not hurry, yet everything is accomplished.” 	— Laozi	Your plateau is not failure—it’s the stillness before the next wave.
+“He who knows others is wise; he who knows himself is enlightened.” 	— Laozi	You’ve shown deep self-awareness. Now let that guide your rituals.
+“Stop thinking, and end your problems.” 	— Laozi	Not a call to ignorance, but to presence. Eat with intention, not over-analysis.
+“The soft overcomes the hard.” 	— Laozi	Gentleness with yourself—compassion, not control—is what will carry you forward.
