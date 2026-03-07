@@ -117,12 +117,6 @@ mock_sqlite3() {
     return 1
 }
 
-# Mock mysql
-mock_mysql() {
-    MOCK_MYSQL_CALLED=1
-    return 0
-}
-
 # Mock mariadb
 mock_mariadb() {
     MOCK_MARIADB_CALLED=1
@@ -247,16 +241,6 @@ test_sqlite_database_extension() {
 # Test Suite: Credential Handling
 ################################################################################
 
-test_mysql_default_username() {
-    echo ""
-    echo "Test Suite: Credential Handling"
-    echo "==============================="
-    
-    local mysql_user=""
-    mysql_user=${mysql_user:-root}
-    assert_equals "root" "$mysql_user" "MySQL default username is 'root'"
-}
-
 test_mariadb_default_username() {
     local mariadb_user=""
     mariadb_user=${mariadb_user:-root}
@@ -296,17 +280,6 @@ test_sqlite_package_names() {
     assert_equals "sqlite" "${sqlite_packages[alpine]}" "SQLite package for Alpine"
 }
 
-test_mysql_package_names() {
-    declare -A mysql_packages
-    mysql_packages[ubuntu/debian]="mysql-server"
-    mysql_packages[centos/rhel/fedora]="mysql-server"
-    mysql_packages[alpine]="mysql"
-    mysql_packages[macos]="mysql"
-    
-    assert_equals "mysql-server" "${mysql_packages[ubuntu/debian]}" "MySQL package for Ubuntu/Debian"
-    assert_equals "mysql" "${mysql_packages[alpine]}" "MySQL package for Alpine"
-}
-
 test_mariadb_package_names() {
     declare -A mariadb_packages
     mariadb_packages[ubuntu/debian]="mariadb-server"
@@ -344,13 +317,6 @@ test_sqlite_selection() {
     fi
 }
 
-test_mysql_selection() {
-    local choice="2"
-    if [ "$choice" = "2" ]; then
-        assert_true 1 "MySQL selection (choice=2)"
-    fi
-}
-
 test_mariadb_selection() {
     local choice="3"
     if [ "$choice" = "3" ]; then
@@ -359,9 +325,9 @@ test_mariadb_selection() {
 }
 
 test_postgresql_selection() {
-    local choice="4"
-    if [ "$choice" = "4" ]; then
-        assert_true 1 "PostgreSQL selection (choice=4)"
+    local choice="3"
+    if [ "$choice" = "3" ]; then
+        assert_true 1 "PostgreSQL selection (choice=3)"
     fi
 }
 
@@ -457,22 +423,6 @@ test_sqlite_encrypt_db_function() {
     else
         echo -e "${YELLOW}⊘ SKIP${NC}: openssl not available; skipping sqlite_encrypt_db test"
     fi
-}
-
-test_mysql_create_database_function() {
-    echo ""
-    echo "Test Suite: dbUtils - mysql_create_database"
-    echo "============================================"
-
-    # Mock mysql binary
-    mysql() { return 0; }
-    mysql_create_database "testuser" "testpass" "testdb"
-    if [ $? -eq 0 ]; then
-        assert_true 1 "mysql_create_database invoked (mocked mysql)"
-    else
-        assert_false 0 "mysql_create_database failed"
-    fi
-    unset -f mysql
 }
 
 test_postgresql_create_database_function() {
@@ -604,14 +554,6 @@ test_sqlite_command_format() {
     fi
 }
 
-test_mysql_create_database_command() {
-    if grep -q 'CREATE DATABASE IF NOT EXISTS' dbInit.sh; then
-        assert_true 1 "MySQL CREATE DATABASE command exists"
-    else
-        assert_false 0 "MySQL CREATE DATABASE command exists"
-    fi
-}
-
 test_mariadb_create_database_command() {
     if grep -q 'mariadb.*CREATE DATABASE' dbInit.sh; then
         assert_true 1 "MariaDB CREATE DATABASE command exists"
@@ -631,18 +573,6 @@ test_postgresql_createdb_command() {
 ################################################################################
 # Test Suite: Password Handling
 ################################################################################
-
-test_mysql_password_handling() {
-    echo ""
-    echo "Test Suite: Password Security"
-    echo "============================="
-    
-    if grep -q "read -sp.*password" dbInit.sh; then
-        assert_true 1 "MySQL password is read silently (no echo)"
-    else
-        assert_false 0 "MySQL password is read silently (no echo)"
-    fi
-}
 
 test_mariadb_password_handling() {
     if grep -q "read -sp.*password" dbInit.sh; then
@@ -687,12 +617,10 @@ main() {
     test_custom_username_assignment
     
     test_sqlite_package_names
-    test_mysql_package_names
     test_mariadb_package_names
     test_postgresql_package_names
     
     test_sqlite_selection
-    test_mysql_selection
     test_mariadb_selection
     test_postgresql_selection
     
@@ -709,11 +637,9 @@ main() {
     test_logging_output_exists
     
     test_sqlite_command_format
-    test_mysql_create_database_command
     test_mariadb_create_database_command
     test_postgresql_createdb_command
     
-    test_mysql_password_handling
     test_mariadb_password_handling
     test_password_variable_usage
 
@@ -722,7 +648,6 @@ main() {
     test_sqlite_create_database_function
     test_sqlite_create_tables_function
     test_sqlite_encrypt_db_function
-    test_mysql_create_database_function
     test_postgresql_create_database_function
     
     # Print summary
