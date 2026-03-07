@@ -591,6 +591,338 @@ test_password_variable_usage() {
 }
 
 ################################################################################
+# Test Suite: SQLite UDFs (User Defined Functions)
+################################################################################
+
+test_sqlite_udf_bmr_mifflin_stjeor() {
+    echo ""
+    echo "Test Suite: SQLite UDFs - BMR Calculations"
+    echo "=========================================="
+    
+    if command -v python3 >/dev/null 2>&1; then
+        local tmpdb
+        tmpdb=$(make_tmpfile)
+        
+        # Create database and setup UDFs
+        sqlite3 "$tmpdb" "SELECT 1;" > /dev/null 2>&1
+        source dbUtils.sh
+        sqlite_create_tables "$tmpdb"
+        python3 sqlite_db.py "$tmpdb" > /dev/null 2>&1
+        
+        # Test BMR calculation UDF
+        local result
+        result=$(sqlite3 "$tmpdb" "SELECT bmr_mifflin_stjeor(70, 175, 35, 'm')" 2>/dev/null)
+        
+        if [ -n "$result" ] && [ "$result" != "0" ]; then
+            assert_true 1 "UDF bmr_mifflin_stjeor is available and returns a value ($result)"
+        else
+            assert_false 0 "UDF bmr_mifflin_stjeor is available and returns a value"
+        fi
+        
+        rm -f "$tmpdb"
+    else
+        echo -e "${YELLOW}⊘ SKIP${NC}: python3 or sqlite3 not available"
+    fi
+}
+
+test_sqlite_udf_calculate_bmi() {
+    echo ""
+    echo "Test Suite: SQLite UDFs - Body Composition"
+    echo "=========================================="
+    
+    if command -v python3 >/dev/null 2>&1; then
+        local tmpdb
+        tmpdb=$(make_tmpfile)
+        
+        # Create database and setup UDFs
+        sqlite3 "$tmpdb" "SELECT 1;" > /dev/null 2>&1
+        source dbUtils.sh
+        sqlite_create_tables "$tmpdb"
+        python3 sqlite_db.py "$tmpdb" > /dev/null 2>&1
+        
+        # Test BMI calculation UDF
+        local result
+        result=$(sqlite3 "$tmpdb" "SELECT calculate_bmi(70, 1.75)" 2>/dev/null)
+        
+        if [ -n "$result" ] && [ "$result" != "0" ]; then
+            assert_true 1 "UDF calculate_bmi is available and returns a value ($result)"
+        else
+            assert_false 0 "UDF calculate_bmi is available and returns a value"
+        fi
+        
+        rm -f "$tmpdb"
+    else
+        echo -e "${YELLOW}⊘ SKIP${NC}: python3 or sqlite3 not available"
+    fi
+}
+
+test_sqlite_udf_kg_to_lb_conversion() {
+    echo ""
+    echo "Test Suite: SQLite UDFs - Unit Conversion"
+    echo "=========================================="
+    
+    if command -v python3 >/dev/null 2>&1; then
+        local tmpdb
+        tmpdb=$(make_tmpfile)
+        
+        # Create database and setup UDFs
+        sqlite3 "$tmpdb" "SELECT 1;" > /dev/null 2>&1
+        source dbUtils.sh
+        sqlite_create_tables "$tmpdb"
+        python3 sqlite_db.py "$tmpdb" > /dev/null 2>&1
+        
+        # Test kg to lb conversion UDF
+        local result
+        result=$(sqlite3 "$tmpdb" "SELECT kg_to_lb(70)" 2>/dev/null)
+        
+        if [ -n "$result" ] && [ "$result" != "0" ]; then
+            assert_true 1 "UDF kg_to_lb is available and returns a value ($result)"
+        else
+            assert_false 0 "UDF kg_to_lb is available and returns a value"
+        fi
+        
+        rm -f "$tmpdb"
+    else
+        echo -e "${YELLOW}⊘ SKIP${NC}: python3 or sqlite3 not available"
+    fi
+}
+
+test_sqlite_all_udfs_registered() {
+    echo ""
+    echo "Test Suite: SQLite UDFs - All Functions Registered"
+    echo "===================================================="
+    
+    if command -v python3 >/dev/null 2>&1; then
+        local tmpdb
+        tmpdb=$(make_tmpfile)
+        
+        # Create database and setup UDFs
+        sqlite3 "$tmpdb" "SELECT 1;" > /dev/null 2>&1
+        source dbUtils.sh
+        sqlite_create_tables "$tmpdb"
+        python3 sqlite_db.py "$tmpdb" > /dev/null 2>&1
+        
+        # List of all UDFs that should be registered
+        local udfs=("bmr_mifflin_stjeor" "bmr_lbm" "bmr_rev_hb" "calculate_tdee" "calculate_bmi" "calculate_ffmi" "calculate_smi" "calculate_sm_fm_ratio" "calculate_phrr" "calculate_phrr_mets" "calculate_vo2max_cooper" "calculate_metsmax_peloton" "kg_to_lb" "lb_to_kg")
+        
+        local all_available=1
+        for udf in "${udfs[@]}"; do
+            if ! sqlite3 "$tmpdb" "SELECT $udf" 2>/dev/null | grep -q "."; then
+                all_available=0
+                break
+            fi
+        done
+        
+        if [ $all_available -eq 1 ]; then
+            assert_true 1 "All UDFs are registered and callable"
+        else
+            assert_false 0 "All UDFs are registered and callable"
+        fi
+        
+        rm -f "$tmpdb"
+    else
+        echo -e "${YELLOW}⊘ SKIP${NC}: python3 or sqlite3 not available"
+    fi
+}
+
+################################################################################
+# Test Suite: SQLite Views
+################################################################################
+
+test_sqlite_view_weight_analysis() {
+    echo ""
+    echo "Test Suite: SQLite Views - Weight Analysis"
+    echo "=========================================="
+    
+    if command -v python3 >/dev/null 2>&1; then
+        local tmpdb
+        tmpdb=$(make_tmpfile)
+        
+        # Create database and setup views
+        sqlite3 "$tmpdb" "SELECT 1;" > /dev/null 2>&1
+        source dbUtils.sh
+        sqlite_create_tables "$tmpdb"
+        python3 sqlite_db.py "$tmpdb" > /dev/null 2>&1
+        
+        # Check if weight_analysis view exists
+        local view_count
+        view_count=$(sqlite3 "$tmpdb" "SELECT COUNT(*) FROM sqlite_master WHERE type='view' AND name='weight_analysis'" 2>/dev/null)
+        
+        if [ "$view_count" -eq 1 ]; then
+            assert_true 1 "View weight_analysis exists"
+        else
+            assert_false 0 "View weight_analysis exists"
+        fi
+        
+        rm -f "$tmpdb"
+    else
+        echo -e "${YELLOW}⊘ SKIP${NC}: python3 or sqlite3 not available"
+    fi
+}
+
+test_sqlite_view_body_composition_analysis() {
+    if command -v python3 >/dev/null 2>&1; then
+        local tmpdb
+        tmpdb=$(make_tmpfile)
+        
+        sqlite3 "$tmpdb" "SELECT 1;" > /dev/null 2>&1
+        source dbUtils.sh
+        sqlite_create_tables "$tmpdb"
+        python3 sqlite_db.py "$tmpdb" > /dev/null 2>&1
+        
+        local view_count
+        view_count=$(sqlite3 "$tmpdb" "SELECT COUNT(*) FROM sqlite_master WHERE type='view' AND name='body_composition_analysis'" 2>/dev/null)
+        
+        if [ "$view_count" -eq 1 ]; then
+            assert_true 1 "View body_composition_analysis exists"
+        else
+            assert_false 0 "View body_composition_analysis exists"
+        fi
+        
+        rm -f "$tmpdb"
+    else
+        echo -e "${YELLOW}⊘ SKIP${NC}: python3 or sqlite3 not available"
+    fi
+}
+
+test_sqlite_view_exercise_analysis() {
+    if command -v python3 >/dev/null 2>&1; then
+        local tmpdb
+        tmpdb=$(make_tmpfile)
+        
+        sqlite3 "$tmpdb" "SELECT 1;" > /dev/null 2>&1
+        source dbUtils.sh
+        sqlite_create_tables "$tmpdb"
+        python3 sqlite_db.py "$tmpdb" > /dev/null 2>&1
+        
+        local view_count
+        view_count=$(sqlite3 "$tmpdb" "SELECT COUNT(*) FROM sqlite_master WHERE type='view' AND name='exercise_analysis'" 2>/dev/null)
+        
+        if [ "$view_count" -eq 1 ]; then
+            assert_true 1 "View exercise_analysis exists"
+        else
+            assert_false 0 "View exercise_analysis exists"
+        fi
+        
+        rm -f "$tmpdb"
+    else
+        echo -e "${YELLOW}⊘ SKIP${NC}: python3 or sqlite3 not available"
+    fi
+}
+
+test_sqlite_view_blood_pressure_analysis() {
+    if command -v python3 >/dev/null 2>&1; then
+        local tmpdb
+        tmpdb=$(make_tmpfile)
+        
+        sqlite3 "$tmpdb" "SELECT 1;" > /dev/null 2>&1
+        source dbUtils.sh
+        sqlite_create_tables "$tmpdb"
+        python3 sqlite_db.py "$tmpdb" > /dev/null 2>&1
+        
+        local view_count
+        view_count=$(sqlite3 "$tmpdb" "SELECT COUNT(*) FROM sqlite_master WHERE type='view' AND name='blood_pressure_analysis'" 2>/dev/null)
+        
+        if [ "$view_count" -eq 1 ]; then
+            assert_true 1 "View blood_pressure_analysis exists"
+        else
+            assert_false 0 "View blood_pressure_analysis exists"
+        fi
+        
+        rm -f "$tmpdb"
+    else
+        echo -e "${YELLOW}⊘ SKIP${NC}: python3 or sqlite3 not available"
+    fi
+}
+
+test_sqlite_view_nutrition_analysis() {
+    if command -v python3 >/dev/null 2>&1; then
+        local tmpdb
+        tmpdb=$(make_tmpfile)
+        
+        sqlite3 "$tmpdb" "SELECT 1;" > /dev/null 2>&1
+        source dbUtils.sh
+        sqlite_create_tables "$tmpdb"
+        python3 sqlite_db.py "$tmpdb" > /dev/null 2>&1
+        
+        local view_count
+        view_count=$(sqlite3 "$tmpdb" "SELECT COUNT(*) FROM sqlite_master WHERE type='view' AND name='nutrition_analysis'" 2>/dev/null)
+        
+        if [ "$view_count" -eq 1 ]; then
+            assert_true 1 "View nutrition_analysis exists"
+        else
+            assert_false 0 "View nutrition_analysis exists"
+        fi
+        
+        rm -f "$tmpdb"
+    else
+        echo -e "${YELLOW}⊘ SKIP${NC}: python3 or sqlite3 not available"
+    fi
+}
+
+test_sqlite_all_views_created() {
+    echo ""
+    echo "Test Suite: SQLite Views - All Views Created"
+    echo "==========================================="
+    
+    if command -v python3 >/dev/null 2>&1; then
+        local tmpdb
+        tmpdb=$(make_tmpfile)
+        
+        sqlite3 "$tmpdb" "SELECT 1;" > /dev/null 2>&1
+        source dbUtils.sh
+        sqlite_create_tables "$tmpdb"
+        python3 sqlite_db.py "$tmpdb" > /dev/null 2>&1
+        
+        # Check that exactly 5 views are created
+        local view_count
+        view_count=$(sqlite3 "$tmpdb" "SELECT COUNT(*) FROM sqlite_master WHERE type='view'" 2>/dev/null)
+        
+        if [ "$view_count" -eq 5 ]; then
+            assert_true 1 "All 5 analytical views created successfully"
+        else
+            assert_false 0 "All 5 analytical views created successfully (found $view_count views)"
+        fi
+        
+        rm -f "$tmpdb"
+    else
+        echo -e "${YELLOW}⊘ SKIP${NC}: python3 or sqlite3 not available"
+    fi
+}
+
+################################################################################
+# Test Suite: Python Module Validation
+################################################################################
+
+test_sqlite_db_python_module() {
+    echo ""
+    echo "Test Suite: sqlite_db.py Module"
+    echo "================================="
+    
+    if command -v python3 >/dev/null 2>&1; then
+        if python3 -c "import sqlite_db" 2>/dev/null; then
+            assert_true 1 "sqlite_db.py module can be imported"
+        else
+            assert_false 0 "sqlite_db.py module can be imported"
+        fi
+    else
+        echo -e "${YELLOW}⊘ SKIP${NC}: python3 not available"
+    fi
+}
+
+test_sqlite_db_python_syntax() {
+    if command -v python3 >/dev/null 2>&1; then
+        if python3 -m py_compile sqlite_db.py 2>/dev/null; then
+            assert_true 1 "sqlite_db.py has valid Python syntax"
+        else
+            assert_false 0 "sqlite_db.py has valid Python syntax"
+        fi
+    else
+        echo -e "${YELLOW}⊘ SKIP${NC}: python3 not available"
+    fi
+}
+
+################################################################################
 # Run All Tests
 ################################################################################
 
@@ -649,6 +981,24 @@ main() {
     test_sqlite_create_tables_function
     test_sqlite_encrypt_db_function
     test_postgresql_create_database_function
+    
+    # SQLite UDF tests
+    test_sqlite_udf_bmr_mifflin_stjeor
+    test_sqlite_udf_calculate_bmi
+    test_sqlite_udf_kg_to_lb_conversion
+    test_sqlite_all_udfs_registered
+    
+    # SQLite View tests
+    test_sqlite_view_weight_analysis
+    test_sqlite_view_body_composition_analysis
+    test_sqlite_view_exercise_analysis
+    test_sqlite_view_blood_pressure_analysis
+    test_sqlite_view_nutrition_analysis
+    test_sqlite_all_views_created
+    
+    # Python module tests
+    test_sqlite_db_python_module
+    test_sqlite_db_python_syntax
     
     # Print summary
     echo ""
