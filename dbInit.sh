@@ -4,6 +4,7 @@
 # Creates database 'myNutriLoggerInfo' in the chosen database system
 
 DB_NAME="myNutriLoggerInfo"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "=========================================="
 echo "Nutrition Logger Database Initialization"
@@ -25,6 +26,26 @@ case $choice in
             echo "  Location: $(pwd)/$DB_NAME.db"
         else
             echo "✗ Failed to create SQLite database. Make sure sqlite3 is installed."
+            exit 1
+        fi
+        
+        echo ""
+        echo "Creating SQLite tables..."
+        # Source dbUtils.sh to get the table creation functions
+        source "$SCRIPT_DIR/dbUtils.sh"
+        if sqlite_create_tables; then
+            echo "✓ SQLite tables created successfully!"
+        else
+            echo "✗ Failed to create SQLite tables."
+            exit 1
+        fi
+        
+        echo ""
+        echo "Setting up analytical functions and views..."
+        if python3 "$SCRIPT_DIR/sqlite_db.py"; then
+            echo "✓ SQLite analytical functions and views created successfully!"
+        else
+            echo "✗ Failed to setup analytical functions and views."
             exit 1
         fi
         ;;
@@ -72,5 +93,5 @@ esac
 
 echo ""
 echo "=========================================="
-echo "Database initialization complete!"
+echo "Database initialization and setup complete!"
 echo "=========================================="

@@ -99,23 +99,6 @@ CREATE TABLE IF NOT EXISTS exercise_input (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Exercise Calculated Table
-CREATE TABLE IF NOT EXISTS exercise_calculated (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    exercise_id INTEGER NOT NULL,
-    calories_weighted_avg REAL,
-    output_per_minute REAL,
-    calories_output_20 REAL,
-    calories_output_25 REAL,
-    calories_phrr_mets REAL,
-    phrr REAL,
-    metsmax_peloton REAL,
-    vo2max_cooper REAL,
-    weight_current_kg REAL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (exercise_id) REFERENCES exercise_input(id) ON DELETE CASCADE
-);
-
 -- Weight Input Table
 CREATE TABLE IF NOT EXISTS weight_input (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -123,21 +106,6 @@ CREATE TABLE IF NOT EXISTS weight_input (
     time TIME,
     weight_kg REAL NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Weight Calculated Table
-CREATE TABLE IF NOT EXISTS weight_calculated (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    weight_id INTEGER NOT NULL UNIQUE,
-    weight_lb REAL,
-    weight_kg_7davg REAL,
-    bmr_mifflin_stjeor REAL,
-    bmr_lbm REAL,
-    bmr_rev_hb REAL,
-    tdee REAL,
-    min_weight_to_date_kg REAL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (weight_id) REFERENCES weight_input(id) ON DELETE CASCADE
 );
 
 -- Body Composition Input Table
@@ -149,19 +117,6 @@ CREATE TABLE IF NOT EXISTS body_composition_input (
     body_fat REAL,
     source TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Body Composition Calculated Table
-CREATE TABLE IF NOT EXISTS body_composition_calculated (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    body_id INTEGER NOT NULL UNIQUE,
-    bmi REAL,
-    lean_mass REAL,
-    ffmi REAL,
-    smi REAL,
-    sm_fm_ratio REAL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (body_id) REFERENCES body_composition_input(id) ON DELETE CASCADE
 );
 
 -- Blood Pressure Input Table
@@ -177,17 +132,6 @@ CREATE TABLE IF NOT EXISTS blood_pressure_input (
     afib BOOLEAN,
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Blood Pressure Calculated Table
-CREATE TABLE IF NOT EXISTS blood_pressure_calculated (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    bp_id INTEGER NOT NULL UNIQUE,
-    sys7day REAL,
-    dia7day REAL,
-    hr7day REAL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (bp_id) REFERENCES blood_pressure_input(id) ON DELETE CASCADE
 );
 
 -- Workout Plan Table
@@ -285,13 +229,9 @@ DROP TABLE IF EXISTS motivation_quotes;
 DROP TABLE IF EXISTS motivation_mantras;
 DROP TABLE IF EXISTS general_info;
 DROP TABLE IF EXISTS workout_plan;
-DROP TABLE IF EXISTS blood_pressure_calculated;
 DROP TABLE IF EXISTS blood_pressure_input;
-DROP TABLE IF EXISTS body_composition_calculated;
 DROP TABLE IF EXISTS body_composition_input;
-DROP TABLE IF EXISTS weight_calculated;
 DROP TABLE IF EXISTS weight_input;
-DROP TABLE IF EXISTS exercise_calculated;
 DROP TABLE IF EXISTS exercise_input;
 DROP TABLE IF EXISTS food_input;
 EOF
@@ -389,6 +329,27 @@ postgresql_create_tables() {
     echo -e "${BLUE}[PostgreSQL]${NC} Creating tables in: $db_name"
     
     psql -U "$user" -d "$db_name" << 'EOF' 2>/dev/null
+-- Conversions table
+CREATE TABLE IF NOT EXISTS conversions (
+    id SERIAL PRIMARY KEY,
+    metric_name VARCHAR(100) NOT NULL UNIQUE,
+    metric_value REAL,
+    imperial_name VARCHAR(100),
+    imperial_value REAL,
+    conversion_factor REAL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--- Personal Metrics Table
+CREATE TABLE IF NOT EXISTS personal_metrics (
+    id SERIAL PRIMARY KEY,
+    metric_name VARCHAR(100) NOT NULL UNIQUE,
+    metric_value REAL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Food Input Table
 CREATE TABLE IF NOT EXISTS food_input (
     id SERIAL PRIMARY KEY,
@@ -416,7 +377,7 @@ CREATE TABLE IF NOT EXISTS exercise_input (
     exercise_type VARCHAR(100) NOT NULL,
     warmup_cooldown VARCHAR(50),
     calories_watch_wc INTEGER,
-    duration TIME,
+    duration_minutes REAL,
     avg_hr_watch INTEGER,
     max_hr_watch INTEGER,
     calories_watch INTEGER,
@@ -430,21 +391,11 @@ CREATE TABLE IF NOT EXISTS exercise_input (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Exercise Calculated Table
-CREATE TABLE IF NOT EXISTS exercise_calculated (
-    id SERIAL PRIMARY KEY,
-    exercise_id INTEGER NOT NULL REFERENCES exercise_input(id) ON DELETE CASCADE,
-    calories_weighted_avg DECIMAL(8,2),
-    output_per_minute DECIMAL(8,4),
-    calories_output_20 DECIMAL(8,2),
-    calories_output_25 DECIMAL(8,2),
-    calories_phrr_mets DECIMAL(8,2),
-    phrr DECIMAL(5,3),
-    metsmax_peloton DECIMAL(5,2),
-    vo2max_cooper DECIMAL(5,2),
-    weight_current_kg DECIMAL(6,2),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+---FTP_peloton =LET(correction,0.844,FTP,IFERROR(XLOOKUP(MAX(FILTER([DateTime],(LEFT([Exercise Type],3)="FTP")*([DateTime]<=[@DateTime]),TODAY())),[DateTime],[Power_w_Peloton]),407),correction*FTP)
+---VO2max2_peloton	=LET(vo2maxw,[@[FTP_peloton]]/0.85,(vo2maxw*10.8/[@[Weight_current_kg]])+7)	#N/A
+---VO2Max_watch_calc	=IF(AND([@[Exercise Type]]="Outdoor Run",(HOUR([@Duration])*60+MINUTE([@Duration])+SECOND([@Duration]/60))>11,(HOUR([@Duration])*60+MINUTE([@Duration])+SECOND([@Duration])/60)<13),(IF([@[Distance_watch_mi]]>0,CONVERT([@[Distance_watch_mi]],"mi","km"),[@[Distance_watch_km]]) *1000- 504.9)/44.73,[@[VO2Max_watch_calc]])
+---VO2max_cooper	=[@[VO2max2_peloton]]/3.5
+---METSmax_peloton	=XLOOKUP(MAX(FILTER(tb_Weight[Date],tb_Weight[Date]<=[@Date])),tb_Weight[Date],tb_Weight[Weight_kg])
 
 -- Weight Input Table
 CREATE TABLE IF NOT EXISTS weight_input (
@@ -452,20 +403,6 @@ CREATE TABLE IF NOT EXISTS weight_input (
     date DATE NOT NULL UNIQUE,
     time TIME,
     weight_kg DECIMAL(6,2) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Weight Calculated Table
-CREATE TABLE IF NOT EXISTS weight_calculated (
-    id SERIAL PRIMARY KEY,
-    weight_id INTEGER NOT NULL UNIQUE REFERENCES weight_input(id) ON DELETE CASCADE,
-    weight_lb DECIMAL(6,2),
-    weight_kg_7davg DECIMAL(6,2),
-    bmr_mifflin_stjeor DECIMAL(8,2),
-    bmr_lbm DECIMAL(8,2),
-    bmr_rev_hb DECIMAL(8,2),
-    tdee DECIMAL(8,2),
-    min_weight_to_date_kg DECIMAL(6,2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -477,18 +414,6 @@ CREATE TABLE IF NOT EXISTS body_composition_input (
     skeletal_muscle_kg DECIMAL(6,2),
     body_fat DECIMAL(5,2),
     source VARCHAR(100),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Body Composition Calculated Table
-CREATE TABLE IF NOT EXISTS body_composition_calculated (
-    id SERIAL PRIMARY KEY,
-    body_id INTEGER NOT NULL UNIQUE REFERENCES body_composition_input(id) ON DELETE CASCADE,
-    bmi DECIMAL(5,2),
-    lean_mass DECIMAL(6,2),
-    ffmi DECIMAL(5,2),
-    smi DECIMAL(5,2),
-    sm_fm_ratio DECIMAL(5,3),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -504,16 +429,6 @@ CREATE TABLE IF NOT EXISTS blood_pressure_input (
     from_source VARCHAR(100),
     afib BOOLEAN,
     notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Blood Pressure Calculated Table
-CREATE TABLE IF NOT EXISTS blood_pressure_calculated (
-    id SERIAL PRIMARY KEY,
-    bp_id INTEGER NOT NULL UNIQUE REFERENCES blood_pressure_input(id) ON DELETE CASCADE,
-    sys7day DECIMAL(6,2),
-    dia7day DECIMAL(6,2),
-    hr7day DECIMAL(6,2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -614,13 +529,9 @@ DROP TABLE IF EXISTS motivation_quotes CASCADE;
 DROP TABLE IF EXISTS motivation_mantras CASCADE;
 DROP TABLE IF EXISTS general_info CASCADE;
 DROP TABLE IF EXISTS workout_plan CASCADE;
-DROP TABLE IF EXISTS blood_pressure_calculated CASCADE;
 DROP TABLE IF EXISTS blood_pressure_input CASCADE;
-DROP TABLE IF EXISTS body_composition_calculated CASCADE;
 DROP TABLE IF EXISTS body_composition_input CASCADE;
-DROP TABLE IF EXISTS weight_calculated CASCADE;
 DROP TABLE IF EXISTS weight_input CASCADE;
-DROP TABLE IF EXISTS exercise_calculated CASCADE;
 DROP TABLE IF EXISTS exercise_input CASCADE;
 DROP TABLE IF EXISTS food_input CASCADE;
 EOF
